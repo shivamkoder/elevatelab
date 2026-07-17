@@ -113,7 +113,21 @@ def color_change(val):
         return 'color: red'
     return 'color: gray'
 
-styled_df = df.style.map(color_change, subset=['24h Change (%)'])
+# --- TABLE ---
+st.subheader(f"Top {coin_limit} Coins ({currency.upper()})")
+def color_change(val):
+    if val > 0:
+        return 'color: green'
+    elif val < 0:
+        return 'color: red'
+    return 'color: gray'
+
+# Try using 'map' (newer pandas), fall back to 'applymap' (older pandas)
+try:
+    styled_df = df.style.map(color_change, subset=['24h Change (%)'])
+except AttributeError:
+    styled_df = df.style.applymap(color_change, subset=['24h Change (%)'])
+
 st.dataframe(styled_df, use_container_width=True)
 
 # --- BAR CHART ---
