@@ -5,19 +5,27 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pycoingecko import CoinGeckoAPI
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Try to load from .env locally, but also allow passing credentials directly
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 class CryptoPriceTracker:
-    def __init__(self):
+    def __init__(self, sender_email=None, sender_password=None):
         self.client = CoinGeckoAPI()
-        self.sender_email = os.getenv("EMAIL_SENDER")
-        self.sender_password = os.getenv("EMAIL_PASSWORD")
+        # If credentials are passed, use them; otherwise try env/secrets
+        if sender_email and sender_password:
+            self.sender_email = sender_email
+            self.sender_password = sender_password
+        else:
+            # For local: use os.getenv; for Streamlit: use st.secrets later
+            self.sender_email = os.getenv("EMAIL_SENDER")
+            self.sender_password = os.getenv("EMAIL_PASSWORD")
 
     def get_top_coins(self, vs_currency='usd', limit=10):
-        """Fetch top cryptocurrencies by market cap"""
         try:
             data = self.client.get_coins_markets(
                 vs_currency=vs_currency,
@@ -27,7 +35,6 @@ class CryptoPriceTracker:
                 sparkline=False
             )
             df = pd.DataFrame(data)
-            # Keep only relevant columns
             df = df[['id', 'symbol', 'name', 'current_price', 'market_cap', 
                      'total_volume', 'price_change_percentage_24h']]
             df.columns = ['ID', 'Symbol', 'Name', 'Price', 'Market Cap', 
@@ -38,7 +45,6 @@ class CryptoPriceTracker:
             return pd.DataFrame()
 
     def get_coin_history(self, coin_id, vs_currency='usd', days=30):
-        """Fetch historical price data for a specific coin"""
         try:
             data = self.client.get_coin_market_chart_by_id(
                 id=coin_id,
@@ -54,7 +60,10 @@ class CryptoPriceTracker:
             return pd.DataFrame()
 
     def send_alert_email(self, coin_name, current_price, target_price, recipient_email):
-        """Send a price alert email"""
+        if not self.sender_email or not self.sender_password:
+            print("⚠️ Email credentials not set. Alert not sent.")
+            return False
+
         subject = f"🚨 Price Alert: {coin_name} reached ${current_price:,.2f}!"
         body = f"""
         Hello,
